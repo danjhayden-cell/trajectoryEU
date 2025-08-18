@@ -31,7 +31,7 @@ export interface ComparisonState {
 
 const initialState: ComparisonState = {
   indicator: 'NY.GDP.PCAP.PP.KD',
-  regions: ['EUU', 'USA'],
+  regions: ['EUU', 'USA'], // EU always included as baseline
   startYear: 2000,
   horizon: 20,
   scenario: 0,
@@ -198,142 +198,268 @@ export function TrajectoryCompare() {
         </div>
       </div>
 
-      {/* Primary Controls Bar */}
-      <div className="bg-background-primary rounded-xl border border-border-light shadow-sm p-6 mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* Indicator Selection */}
-          <div>
-            <label className="block text-sm font-medium text-text-tertiary mb-2">
-              Indicator
-            </label>
-            <select
-              value={state.indicator}
-              onChange={(e) => handleStateChange({ indicator: e.target.value })}
-              className="w-full text-sm bg-background-secondary border border-border-medium rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-chart-eu focus:border-transparent transition-colors"
-            >
-              <option value="NY.GDP.PCAP.PP.KD">GDP per Capita</option>
-              <option value="NY.GDP.MKTP.KD.ZG">GDP Growth</option>
-              <option value="GB.XPD.RSDV.GD.ZS">R&D Spending</option>
-              <option value="NE.GDI.TOTL.ZS">Investment</option>
-              <option value="labor_productivity">Productivity</option>
-            </select>
-          </div>
+      {/* Primary Controls Card - EU-Focused Design */}
+      <div className="bg-background-primary rounded-2xl border border-border-light shadow-lg p-8 mb-8">
+        {/* Header with EU Focus */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-text-primary mb-2">Compare with the EU</h2>
+          <p className="text-base text-text-tertiary">Explore how different economic indicators evolve across regions over time</p>
+        </div>
 
-          {/* Regions Selection */}
+        {/* Main Controls Grid */}
+        <div className="space-y-8">
+          {/* Indicator Selection - Button Grid */}
           <div>
-            <label className="block text-sm font-medium text-text-tertiary mb-2">
-              Regions
+            <label className="block text-lg font-semibold text-text-primary mb-4">
+              Economic Indicator
             </label>
-            <div className="flex flex-wrap gap-2">
-              {['EUU', 'USA', 'CHN', 'BRC'].map(regionId => {
-                const region = regions.find(r => r.id === regionId);
-                if (!region) return null;
-                return (
-                  <button
-                    key={regionId}
-                    onClick={() => {
-                      const newRegions = state.regions.includes(regionId)
-                        ? state.regions.filter(r => r !== regionId)
-                        : [...state.regions, regionId];
-                      handleStateChange({ regions: newRegions });
-                    }}
-                    className={`px-3 py-2 text-sm rounded border transition-colors ${
-                      state.regions.includes(regionId)
-                        ? 'bg-chart-eu text-white border-chart-eu'
-                        : 'bg-background-secondary text-text-tertiary border-border-medium hover:border-chart-eu'
-                    }`}
-                  >
-                    {region.name.split(' ')[0]} {/* First word only for compact display */}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Horizon Selection */}
-          <div>
-            <label className="block text-sm font-medium text-text-tertiary mb-2">
-              Horizon
-            </label>
-            <div className="flex space-x-2">
-              {[5, 10, 20, 50].map(horizon => (
-                <button
-                  key={horizon}
-                  onClick={() => handleStateChange({ horizon })}
-                  className={`px-3 py-2 text-sm rounded font-medium transition-colors ${
-                    state.horizon === horizon
-                      ? 'bg-chart-eu text-white'
-                      : 'bg-background-secondary text-text-tertiary hover:bg-background-tertiary'
-                  }`}
-                >
-                  {horizon}y
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Scenario Selection */}
-          <div>
-            <label className="block text-sm font-medium text-text-tertiary mb-2">
-              Scenario
-            </label>
-            <div className="flex space-x-2">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               {[
-                { value: -0.5, label: '−0.5pp' },
-                { value: 0, label: 'Baseline' },
-                { value: 0.5, label: '+0.5pp' }
-              ].map(scenario => (
+                { id: 'NY.GDP.PCAP.PP.KD', name: 'GDP per Capita', icon: '💰', desc: 'Purchasing power adjusted' },
+                { id: 'NY.GDP.MKTP.KD.ZG', name: 'GDP Growth', icon: '📈', desc: 'Annual percentage change' },
+                { id: 'GB.XPD.RSDV.GD.ZS', name: 'R&D Spending', icon: '🔬', desc: 'Innovation investment' },
+                { id: 'NE.GDI.TOTL.ZS', name: 'Investment', icon: '🏗️', desc: 'Capital formation' },
+                { id: 'labor_productivity', name: 'Productivity', icon: '⚡', desc: 'Output per worker' }
+              ].map(indicator => (
                 <button
-                  key={scenario.value}
-                  onClick={() => {
-                    setIsCustomScenario(false);
-                    handleStateChange({ scenario: scenario.value });
-                  }}
-                  className={`px-3 py-2 text-sm rounded font-medium transition-colors ${
-                    state.scenario === scenario.value && !isCustomScenario
-                      ? 'bg-chart-eu text-white'
-                      : 'bg-background-secondary text-text-tertiary hover:bg-background-tertiary'
+                  key={indicator.id}
+                  onClick={() => handleStateChange({ indicator: indicator.id })}
+                  className={`p-4 rounded-xl border-2 transition-all duration-200 text-left group ${
+                    state.indicator === indicator.id
+                      ? 'border-chart-eu bg-chart-eu/10 shadow-md transform scale-105'
+                      : 'border-border-medium bg-background-secondary hover:border-chart-eu/50 hover:bg-chart-eu/5'
                   }`}
                 >
-                  {scenario.label}
+                  <div className={`text-2xl mb-2 transition-transform group-hover:scale-110 ${
+                    state.indicator === indicator.id ? 'transform scale-110' : ''
+                  }`}>
+                    {indicator.icon}
+                  </div>
+                  <div className={`font-semibold text-sm mb-1 ${
+                    state.indicator === indicator.id ? 'text-chart-eu' : 'text-text-primary'
+                  }`}>
+                    {indicator.name}
+                  </div>
+                  <div className="text-xs text-text-tertiary">
+                    {indicator.desc}
+                  </div>
                 </button>
               ))}
-              <button
-                onClick={() => {
-                  setIsCustomScenario(true);
-                  handleStateChange({ scenario: customScenario });
-                }}
-                className={`px-3 py-2 text-sm rounded font-medium transition-colors ${
-                  isCustomScenario
-                    ? 'bg-chart-eu text-white'
-                    : 'bg-background-secondary text-text-tertiary hover:bg-background-tertiary'
-                }`}
-              >
-                Custom
-              </button>
             </div>
-            {isCustomScenario && (
-              <div className="mt-4 px-2">
-                <input
-                  type="range"
-                  min="-2"
-                  max="2"
-                  step="0.1"
-                  value={customScenario}
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value);
-                    setCustomScenario(value);
-                    handleStateChange({ scenario: value });
-                  }}
-                  className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                />
-                <div className="flex justify-between text-sm text-text-tertiary mt-2">
-                  <span>-2pp</span>
-                  <span className="font-medium">{customScenario > 0 ? '+' : ''}{customScenario}pp</span>
-                  <span>+2pp</span>
+          </div>
+
+          {/* Regions & Time Controls Row */}
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* EU-Centric Region Selection */}
+            <div>
+              <label className="block text-lg font-semibold text-text-primary mb-4">
+                <span className="inline-flex items-center gap-2">
+                  🇪🇺 EU vs. Which Regions?
+                </span>
+              </label>
+              
+              {/* EU Always Selected (Visual Only) */}
+              <div className="mb-4 p-3 bg-chart-eu/10 border-2 border-chart-eu rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-4 h-4 rounded-full bg-chart-eu flex items-center justify-center">
+                    <div className="w-2 h-2 rounded-full bg-white"></div>
+                  </div>
+                  <span className="font-semibold text-chart-eu">European Union</span>
+                  <span className="text-xs text-chart-eu/70 ml-auto">Baseline</span>
                 </div>
               </div>
-            )}
+
+              {/* Other Regions */}
+              <div className="space-y-3">
+                {[
+                  { id: 'USA', name: 'United States', flag: '🇺🇸', color: '#EF4444' },
+                  { id: 'CHN', name: 'China', flag: '🇨🇳', color: '#F59E0B' },
+                  { id: 'BRC', name: 'BRICS', flag: '🌍', color: '#10B981' }
+                ].map(region => {
+                  const isSelected = state.regions.includes(region.id);
+                  return (
+                    <button
+                      key={region.id}
+                      onClick={() => {
+                        const newRegions = isSelected
+                          ? state.regions.filter(r => r !== region.id)
+                          : [...state.regions, region.id];
+                        // Always ensure EU is included
+                        if (!newRegions.includes('EUU')) {
+                          newRegions.unshift('EUU');
+                        }
+                        handleStateChange({ regions: newRegions });
+                      }}
+                      className={`w-full p-3 rounded-xl border-2 transition-all duration-200 ${
+                        isSelected
+                          ? 'border-2 shadow-md transform scale-105'
+                          : 'border-border-medium bg-background-secondary hover:border-gray-400'
+                      }`}
+                      style={{
+                        borderColor: isSelected ? region.color : undefined,
+                        backgroundColor: isSelected ? `${region.color}10` : undefined
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-all ${
+                          isSelected ? 'transform scale-110' : ''
+                        }`} style={{ backgroundColor: region.color }}>
+                          {isSelected && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                        </div>
+                        <span className="text-lg mr-2">{region.flag}</span>
+                        <span className={`font-semibold ${
+                          isSelected ? 'text-text-primary' : 'text-text-secondary'
+                        }`}>
+                          {region.name}
+                        </span>
+                        {isSelected && (
+                          <span className="ml-auto text-xs font-medium" style={{ color: region.color }}>
+                            ✓ Active
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Consolidated Time & Scenario Controls */}
+            <div className="space-y-6">
+              {/* Time Horizon */}
+              <div>
+                <label className="block text-lg font-semibold text-text-primary mb-4">
+                  📅 Time Horizon
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { value: 10, label: '10 years', desc: 'Medium term' },
+                    { value: 20, label: '20 years', desc: 'Long term' },
+                    { value: 5, label: '5 years', desc: 'Short term' },
+                    { value: 50, label: '50 years', desc: 'Generation' }
+                  ].map(horizon => (
+                    <button
+                      key={horizon.value}
+                      onClick={() => handleStateChange({ horizon: horizon.value })}
+                      className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${
+                        state.horizon === horizon.value
+                          ? 'border-chart-eu bg-chart-eu/10 shadow-md transform scale-105'
+                          : 'border-border-medium bg-background-secondary hover:border-chart-eu/50'
+                      }`}
+                    >
+                      <div className={`font-bold text-base mb-1 ${
+                        state.horizon === horizon.value ? 'text-chart-eu' : 'text-text-primary'
+                      }`}>
+                        {horizon.label}
+                      </div>
+                      <div className="text-xs text-text-tertiary">
+                        {horizon.desc}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Growth Scenario */}
+              <div>
+                <label className="block text-lg font-semibold text-text-primary mb-4">
+                  📊 Growth Scenario
+                </label>
+                <div className="space-y-3">
+                  {[
+                    { value: 0, label: 'Baseline', desc: 'Historical trends continue', icon: '📈' },
+                    { value: 0.5, label: 'Optimistic (+0.5pp)', desc: 'Accelerated growth', icon: '🚀' },
+                    { value: -0.5, label: 'Conservative (-0.5pp)', desc: 'Slower growth', icon: '🐌' }
+                  ].map(scenario => (
+                    <button
+                      key={scenario.value}
+                      onClick={() => {
+                        setIsCustomScenario(false);
+                        handleStateChange({ scenario: scenario.value });
+                      }}
+                      className={`w-full p-3 rounded-xl border-2 transition-all duration-200 text-left ${
+                        state.scenario === scenario.value && !isCustomScenario
+                          ? 'border-chart-eu bg-chart-eu/10 shadow-md'
+                          : 'border-border-medium bg-background-secondary hover:border-chart-eu/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg">{scenario.icon}</span>
+                        <div>
+                          <div className={`font-semibold text-sm mb-1 ${
+                            state.scenario === scenario.value && !isCustomScenario ? 'text-chart-eu' : 'text-text-primary'
+                          }`}>
+                            {scenario.label}
+                          </div>
+                          <div className="text-xs text-text-tertiary">
+                            {scenario.desc}
+                          </div>
+                        </div>
+                        {state.scenario === scenario.value && !isCustomScenario && (
+                          <div className="ml-auto text-chart-eu text-sm font-semibold">✓</div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                  
+                  {/* Custom Scenario */}
+                  <button
+                    onClick={() => {
+                      setIsCustomScenario(true);
+                      handleStateChange({ scenario: customScenario });
+                    }}
+                    className={`w-full p-3 rounded-xl border-2 transition-all duration-200 text-left ${
+                      isCustomScenario
+                        ? 'border-chart-eu bg-chart-eu/10 shadow-md'
+                        : 'border-border-medium bg-background-secondary hover:border-chart-eu/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">⚙️</span>
+                      <div>
+                        <div className={`font-semibold text-sm mb-1 ${
+                          isCustomScenario ? 'text-chart-eu' : 'text-text-primary'
+                        }`}>
+                          Custom ({customScenario > 0 ? '+' : ''}{customScenario}pp)
+                        </div>
+                        <div className="text-xs text-text-tertiary">
+                          Set your own growth rate
+                        </div>
+                      </div>
+                      {isCustomScenario && (
+                        <div className="ml-auto text-chart-eu text-sm font-semibold">✓</div>
+                      )}
+                    </div>
+                  </button>
+                  
+                  {/* Custom Slider */}
+                  {isCustomScenario && (
+                    <div className="p-4 bg-background-tertiary rounded-xl border border-border-light">
+                      <input
+                        type="range"
+                        min="-2"
+                        max="2"
+                        step="0.1"
+                        value={customScenario}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value);
+                          setCustomScenario(value);
+                          handleStateChange({ scenario: value });
+                        }}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <div className="flex justify-between text-sm text-text-tertiary mt-3">
+                        <span>-2pp</span>
+                        <span className="font-semibold text-chart-eu">
+                          {customScenario > 0 ? '+' : ''}{customScenario}pp
+                        </span>
+                        <span>+2pp</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
