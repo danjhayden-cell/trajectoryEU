@@ -62,11 +62,26 @@ interface ComparisonState {
 
 ## Development Patterns
 
+### Checkpoint Strategy
+**Claude creates automatic checkpoints before:**
+- Major refactors or architectural changes
+- Complex new features
+- Experimental approaches
+- Major dependency updates
+
+**Users can request checkpoints:**
+- "Let's save progress before trying this big change"
+- "Should we commit before moving to next feature?"
+- Before risky modifications
+
+**Commit types:** `feat:` `fix:` `refactor:` `docs:` `style:` `checkpoint:` `session:`
+
 ### Component Updates
 1. Use `Read` tool to understand existing code structure
 2. Apply `MultiEdit` for multiple related changes
 3. Maintain consistent spacing/typography in all edits
 4. Test changes via development server
+5. Create checkpoints before major changes
 
 ### Chart Customization
 - Custom plugins in `chartjs-trajectory.tsx`

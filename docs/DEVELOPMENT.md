@@ -47,14 +47,51 @@ git status
 npm run dev
 ```
 
-### 2. Before Major Changes
-```bash
-# Create checkpoint
-git add -A
-git commit -m "checkpoint: before [description of changes]"
+### 2. Checkpoint Strategy (Collaborative Approach)
 
-# Optional: create feature branch for large changes
-git checkout -b feature/new-feature-name
+#### **Automatic Checkpoints (Claude's Responsibility)**
+Claude will create checkpoints before major changes:
+```bash
+git add -A && git commit -m "checkpoint: before implementing URL state persistence"
+```
+
+**When Claude creates checkpoints:**
+- Before major refactors or architectural changes
+- Before implementing complex new features  
+- Before trying experimental approaches
+- Before major dependency updates
+
+#### **User-Requested Checkpoints**
+Users can suggest checkpoints anytime:
+- "Let's save our progress before trying this big change"
+- "Should we commit this before moving to the next feature?"
+- "Let's create a checkpoint here in case we need to roll back"
+
+#### **Progress Commits (After Completing Work)**
+After logical units of work are completed:
+```bash
+git add -A && git commit -m "feat: implement feature X with improvements Y"
+```
+
+**Commit Types:**
+- `feat:` - New features and enhancements
+- `fix:` - Bug fixes and corrections
+- `refactor:` - Code restructuring without functionality changes
+- `docs:` - Documentation updates
+- `style:` - Design system and UI improvements
+- `checkpoint:` - Safety saves before major changes
+- `session:` - End-of-session consolidation commits
+
+#### **Example Checkpoint Flow**
+```
+1. [CLAUDE] "checkpoint: before adding URL persistence"
+2. [WORK] Implement URL persistence feature
+3. [BOTH] "feat: add URL state persistence with query params"
+4. [CLAUDE] "checkpoint: before refactoring chart components"
+5. [WORK] Refactor chart architecture  
+6. [BOTH] "refactor: improve chart component structure"
+7. [END] "session: complete URL persistence and chart improvements"
+8. [PUSH] git push origin main
 ```
 
 ### 3. During Development
@@ -62,6 +99,7 @@ git checkout -b feature/new-feature-name
 - Make incremental commits for logical units of work
 - Test changes in browser before moving to next task
 - Run `npm run lint` periodically
+- Either party can suggest checkpoints for safety
 
 ### 4. After Significant Changes
 ```bash
