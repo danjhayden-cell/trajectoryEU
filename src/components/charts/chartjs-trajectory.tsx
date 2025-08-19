@@ -96,6 +96,17 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
       const region = regions.find(r => r.id === regionId);
       if (!region) return;
 
+      // Use shorter names for chart labels
+      const getShortRegionName = (regionId: string) => {
+        const shortNames: Record<string, string> = {
+          'EUU': 'EU',
+          'USA': 'USA', 
+          'CHN': 'China',
+          'BRC': 'BRICS'
+        };
+        return shortNames[regionId] || region.name;
+      };
+
       const regionColor = regionColors[regionId] || '#6B7280';
 
       // Historical data points
@@ -113,7 +124,7 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
       // Add historical dataset
       if (historicalPoints.length > 0) {
         datasets.push({
-          label: region.name,
+          label: getShortRegionName(regionId),
           data: historicalPoints,
           borderColor: regionColor,
           backgroundColor: `${regionColor}20`,
@@ -148,7 +159,7 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
 
           // Add projection dataset
           datasets.push({
-            label: `${region.name} (Projected)`,
+            label: `${getShortRegionName(regionId)} (Projected)`,
             data: projectionPoints,
             borderColor: regionColor,
             backgroundColor: `${regionColor}10`,
@@ -196,7 +207,7 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
           callbacks: {
             title: (tooltipItems: TooltipItem<'line'>[]) => {
               const year = tooltipItems[0]?.parsed?.x;
-              return `Year: ${year}`;
+              return `${year}`; // Bold year formatting, no comma
             },
             label: (context: TooltipItem<'line'>) => {
               const point = context.dataset.data[context.dataIndex] as ProcessedDataPoint;
@@ -205,7 +216,7 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
                 ? `${value.toFixed(1)}%`
                 : state.indexNormalized 
                   ? `${value.toFixed(1)} (Index)`
-                  : value.toLocaleString();
+                  : Math.round(value).toString(); // Remove comma formatting
               
               const type = point?.type === 'projection' ? ' (Projected)' : '';
               return `${context.dataset.label}: ${formattedValue}${type}`;
@@ -240,6 +251,12 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
               family: 'inherit',
               size: 11,
             },
+            callback: function(value) {
+              if (typeof value === 'number') {
+                return Math.round(value).toString(); // Remove commas from years
+              }
+              return value;
+            },
           },
         },
         y: {
@@ -270,7 +287,7 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
               if (typeof value === 'number') {
                 return indicatorInfo?.unit === '%' 
                   ? `${value.toFixed(1)}%`
-                  : value.toLocaleString();
+                  : Math.round(value).toString();
               }
               return value;
             },
@@ -302,13 +319,24 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
       
       if (projectionStartX < chartArea.right) {
         ctx.save();
-        ctx.fillStyle = 'rgba(59, 130, 246, 0.03)'; // Very subtle blue shade
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.08)'; // More visible blue shade
         ctx.fillRect(
           projectionStartX,
           chartArea.top,
           chartArea.right - projectionStartX,
           chartArea.bottom - chartArea.top
         );
+        
+        // Add a subtle vertical line at the projection boundary
+        ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]); // Dashed line
+        ctx.beginPath();
+        ctx.moveTo(projectionStartX, chartArea.top);
+        ctx.lineTo(projectionStartX, chartArea.bottom);
+        ctx.stroke();
+        ctx.setLineDash([]); // Reset line dash
+        
         ctx.restore();
       }
     }
@@ -404,40 +432,16 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
       </div>
       
       {/* Chart Info */}
-      <div className="border-t border-border-light pt-6 space-y-4">
-        <div className="flex flex-wrap items-center justify-between text-base">
-          <div className="flex items-center space-x-8">
-            <div className="flex items-center space-x-3">
-              <div className="h-3 w-6 border-2 border-chart-eu"></div>
-              <span className="text-text-tertiary">Historical</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="h-px w-6 border-t-2 border-dashed border-chart-eu"></div>
-              <span className="text-text-tertiary">Projection</span>
-            </div>
+      <div className="border-t border-border-light pt-6">
+        <div className="flex items-center space-x-8">
+          <div className="flex items-center space-x-3">
+            <div className="h-3 w-6 border-2 border-chart-eu"></div>
+            <span className="text-text-tertiary">Historical</span>
           </div>
-          <div className="text-text-tertiary">
-            Scenario: {state.scenario === 0 ? 'Baseline growth' : 
-                      state.scenario > 0 ? `+${state.scenario}pp annual growth` : 
-                      `${state.scenario}pp annual growth`}
+          <div className="flex items-center space-x-3">
+            <div className="h-px w-6 border-t-2 border-dashed border-chart-eu"></div>
+            <span className="text-text-tertiary">Projection</span>
           </div>
-        </div>
-        
-        {/* Current Regions Legend */}
-        <div className="flex flex-wrap items-center gap-6">
-          <span className="text-base text-text-secondary font-semibold">Regions:</span>
-          {state.regions.map(regionId => {
-            const region = regions.find(r => r.id === regionId);
-            return region ? (
-              <div key={regionId} className="flex items-center space-x-2">
-                <div 
-                  className="w-3 h-3 rounded-full" 
-                  style={{ backgroundColor: region.color }}
-                ></div>
-                <span className="text-base text-text-secondary">{region.name}</span>
-              </div>
-            ) : null;
-          })}
         </div>
       </div>
     </div>

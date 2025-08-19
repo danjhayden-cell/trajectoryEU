@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Settings, Zap, ChevronDown } from 'lucide-react';
 import { ChartJSTrajectory } from './charts/chartjs-trajectory';
 import { ControlPanel } from './ui/control-panel';
@@ -43,12 +43,64 @@ export function TrajectoryCompare() {
   const [state, setState] = useState<ComparisonState>(initialState);
   const [showNarrative, setShowNarrative] = useState(false);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
-  const [customScenario, setCustomScenario] = useState(0);
+  const [customScenario] = useState(0);
   const [isCustomScenario, setIsCustomScenario] = useState(false);
+  const [consequences, setConsequences] = useState<{
+    content: string;
+  } | null>(null);
+  const [isLoadingConsequences, setIsLoadingConsequences] = useState(false);
+  
+  // Animated header words
+  const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  const [isWordTransitioning, setIsWordTransitioning] = useState(false);
+  const animatedWords = ['growth', 'innovation', 'R&D', 'investment', 'productivity'];
 
   const handleStateChange = (updates: Partial<ComparisonState>) => {
     setState(prev => ({ ...prev, ...updates }));
   };
+
+  // Function to fetch consequences from OpenAI API
+  const fetchConsequences = useCallback(async (deltaData: {
+    region1: string;
+    region2: string;
+    percentDifference: number;
+    leader: string;
+  }) => {
+    if (!deltaData) return;
+
+    setIsLoadingConsequences(true);
+    try {
+      const response = await fetch('/api/consequences', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          indicator: state.indicator,
+          region1: deltaData.region1,
+          region2: deltaData.region2,
+          percentageDifference: deltaData.percentDifference,
+          timeHorizon: state.horizon,
+          scenario: state.scenario,
+          leader: deltaData.leader
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('API Response:', data); // Debug logging
+        setConsequences({ content: data.content });
+      } else {
+        console.error('Failed to fetch consequences:', response.statusText);
+        // Keep existing static content on error
+      }
+    } catch (error) {
+      console.error('Error fetching consequences:', error);
+      // Keep existing static content on error
+    } finally {
+      setIsLoadingConsequences(false);
+    }
+  }, [state.indicator, state.horizon, state.scenario]);
 
   const presets = [
     {
@@ -114,7 +166,6 @@ export function TrajectoryCompare() {
     if (state.regions.length < 2) return null;
     
     const currentYear = 2024;
-    const endYear = currentYear + state.horizon;
     const scenario = isCustomScenario ? customScenario : state.scenario;
     
     // Get sample data for calculation
@@ -174,12 +225,49 @@ export function TrajectoryCompare() {
     };
   }, [state.regions, state.horizon, state.scenario, state.indicator, state.startYear, state.indexNormalized, isCustomScenario, customScenario]);
 
+  // Fetch consequences when delta data changes
+  useEffect(() => {
+    if (deltaData && deltaData.percentDifference > 1) { // Only fetch for meaningful differences
+      fetchConsequences(deltaData);
+    } else {
+      setConsequences(null); // Clear consequences for small differences
+    }
+  }, [deltaData, fetchConsequences]);
+
+  // Animated header word cycling
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsWordTransitioning(true);
+      
+      setTimeout(() => {
+        setCurrentWordIndex((prev) => (prev + 1) % animatedWords.length);
+        setIsWordTransitioning(false);
+      }, 300); // Half the transition time
+      
+    }, 3000); // Change word every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [animatedWords.length]);
+
   return (
     <div className="space-y-8">
       {/* Page Header */}
       <div className="py-8">
         <h1 className="text-3xl font-bold text-text-primary">
-          Compare Europe's trajectory with major peers and see how small differences in growth compound over 10-50 years
+          Compare Europe&apos;s{' '}
+          <span 
+            className="inline-block bg-purple-500 text-white px-4 py-1 rounded-lg"
+            style={{ width: '193px' }} // Fixed width to fit "productivity" and "innovation" comfortably
+          >
+            <span 
+              className={`block text-center transition-all duration-600 ease-in-out ${
+                isWordTransitioning ? 'opacity-0 transform -translate-y-2' : 'opacity-100 transform translate-y-0'
+              }`}
+            >
+              {animatedWords[currentWordIndex]}
+            </span>
+          </span>
+          {' '}trajectory with major peers and see how small differences compound over 10-50 years
         </h1>
       </div>
 
@@ -206,15 +294,15 @@ export function TrajectoryCompare() {
                   onClick={() => handleStateChange({ indicator: indicator.id })}
                   className={`p-3 rounded-lg border-2 transition-all duration-200 text-center group ${
                     state.indicator === indicator.id
-                      ? 'border-chart-eu bg-chart-eu/10 shadow-sm'
-                      : 'border-border-medium bg-background-secondary hover:border-chart-eu/50'
+                      ? 'border-purple-400 bg-purple-100 shadow-lg shadow-purple-200/50 transform scale-[1.02]'
+                      : 'border-border-medium bg-background-secondary hover:border-purple-300 hover:bg-purple-50'
                   }`}
                 >
                   <div className="text-xl mb-1">
                     {indicator.icon}
                   </div>
                   <div className={`font-semibold text-xs ${
-                    state.indicator === indicator.id ? 'text-chart-eu' : 'text-text-primary'
+                    state.indicator === indicator.id ? 'text-purple-700' : 'text-text-primary'
                   }`}>
                     {indicator.name}
                   </div>
@@ -226,19 +314,20 @@ export function TrajectoryCompare() {
           {/* EU-Centric Region Selection - Compact */}
           <div>
             <label className="block text-base font-semibold text-text-primary mb-3">
-              🇪🇺 EU vs. Which Regions?
+              🇪🇺 Compare the EU with:
             </label>
             
             {/* EU Baseline + Other Regions in Grid */}
             <div className="grid grid-cols-2 gap-2">
               {/* EU Always Selected */}
-              <div className="p-2 bg-chart-eu/10 border-2 border-chart-eu rounded-lg">
+              <div className="p-3 bg-blue-50 border-2 border-blue-400 rounded-lg shadow-sm">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-chart-eu flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
+                  <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+                    <span className="text-white text-xs">✓</span>
                   </div>
-                  <span className="font-semibold text-xs text-chart-eu">EU</span>
-                  <span className="text-xs text-chart-eu/70 ml-auto">Base</span>
+                  <span className="text-xs mr-1">🇪🇺</span>
+                  <span className="font-semibold text-xs text-blue-700">EU</span>
+                  <span className="text-xs text-blue-600/70 ml-auto">Base</span>
                 </div>
               </div>
 
@@ -261,19 +350,19 @@ export function TrajectoryCompare() {
                       }
                       handleStateChange({ regions: newRegions });
                     }}
-                    className={`p-2 rounded-lg border-2 transition-all duration-200 ${
+                    className={`p-3 rounded-lg border-2 transition-all duration-200 ${
                       isSelected
                         ? 'shadow-sm'
                         : 'border-border-medium bg-background-secondary hover:border-gray-400'
                     }`}
                     style={{
                       borderColor: isSelected ? region.color : undefined,
-                      backgroundColor: isSelected ? `${region.color}10` : undefined
+                      backgroundColor: isSelected ? `${region.color}15` : undefined
                     }}
                   >
                     <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full flex items-center justify-center`} style={{ backgroundColor: region.color }}>
-                        {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
+                      <div className={`w-4 h-4 rounded-full flex items-center justify-center`} style={{ backgroundColor: region.color }}>
+                        {isSelected && <span className="text-white text-xs">✓</span>}
                       </div>
                       <span className="text-xs mr-1">{region.flag}</span>
                       <span className={`font-semibold text-xs ${
@@ -318,13 +407,13 @@ export function TrajectoryCompare() {
                   <button
                     key={horizon.value}
                     onClick={() => handleStateChange({ horizon: horizon.value })}
-                    className={`p-3 rounded-lg border-2 transition-all text-center ${
+                    className={`p-4 rounded-lg border-2 transition-all duration-200 text-center ${
                       state.horizon === horizon.value
-                        ? 'border-chart-eu bg-chart-eu/10 text-chart-eu font-semibold'
-                        : 'border-border-medium bg-background-secondary text-text-secondary hover:border-chart-eu/50'
+                        ? 'border-purple-400 bg-purple-100 shadow-lg shadow-purple-200/50 transform scale-[1.02] text-purple-700 font-semibold'
+                        : 'border-border-medium bg-background-secondary text-text-secondary hover:border-purple-300 hover:bg-purple-50'
                     }`}
                   >
-                    <div className="font-semibold text-sm">{horizon.label}</div>
+                    <div className="font-semibold text-base">{horizon.label}</div>
                   </button>
                 ))}
               </div>
@@ -332,43 +421,60 @@ export function TrajectoryCompare() {
 
             {/* Growth Scenario Section */}
             <div className="mt-8">
-              <h2 className="text-lg font-semibold text-text-primary mb-3 flex items-center">
+              <h2 className="text-lg font-semibold text-text-primary mb-6 flex items-center">
                 🇪🇺 EU Growth Scenario
               </h2>
-              <div className="space-y-3">
-                {[
-                  { value: -0.5, label: 'Conservative (-0.5pp)', desc: 'Growth slows due to aging populations, debt burdens, or productivity stagnation', icon: '🐌' },
-                  { value: 0, label: 'Baseline (0pp)', desc: 'Current trends continue unchanged from historical patterns', icon: '📈' },
-                  { value: 0.5, label: 'Optimistic (+0.5pp)', desc: 'Growth accelerates through innovation breakthroughs, better policies, or favorable conditions', icon: '🚀' }
-                ].map(scenario => (
-                  <button
-                    key={scenario.value}
-                    onClick={() => {
-                      setIsCustomScenario(false);
-                      handleStateChange({ scenario: scenario.value });
-                    }}
-                    className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
-                      state.scenario === scenario.value && !isCustomScenario
-                        ? 'border-chart-eu bg-chart-eu/10'
-                        : 'border-border-medium bg-background-secondary hover:border-chart-eu/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 mb-1">
-                      <span className="text-base">{scenario.icon}</span>
-                      <span className={`font-semibold text-sm ${
-                        state.scenario === scenario.value && !isCustomScenario ? 'text-chart-eu' : 'text-text-primary'
-                      }`}>
-                        {scenario.label}
-                      </span>
-                      {state.scenario === scenario.value && !isCustomScenario && (
-                        <span className="ml-auto text-chart-eu text-sm font-semibold">✓</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-text-tertiary leading-relaxed">
-                      {scenario.desc}
-                    </p>
-                  </button>
-                ))}
+              
+              {/* Current Status Display - Large and Centered */}
+              <div className="text-center mb-4">
+                <div 
+                  className={`inline-flex items-center justify-center px-8 py-4 rounded-xl font-bold text-3xl min-w-[120px] ${
+                    state.scenario > 0 
+                      ? 'bg-green-500 text-white' 
+                      : state.scenario < 0 
+                        ? 'bg-red-500 text-white'
+                        : 'bg-gray-500 text-white'
+                  }`}
+                >
+                  {state.scenario > 0 ? '+' : ''}{state.scenario.toFixed(1)}%
+                </div>
+              </div>
+
+              {/* Increment/Decrement Controls - Smaller, underneath */}
+              <div className="flex justify-center gap-4 mb-4">
+                <button
+                  onClick={() => handleStateChange({ scenario: Math.max(state.scenario - 0.5, -3.0) })}
+                  className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg border border-red-300 bg-red-50 hover:bg-red-100 transition-all duration-200 text-red-700 font-semibold text-sm"
+                  disabled={state.scenario <= -3.0}
+                >
+                  <span className="text-base">−</span>
+                  <span className="text-xs">0.5%</span>
+                </button>
+                
+                <button
+                  onClick={() => handleStateChange({ scenario: Math.min(state.scenario + 0.5, 3.0) })}
+                  className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg border border-green-300 bg-green-50 hover:bg-green-100 transition-all duration-200 text-green-700 font-semibold text-sm"
+                  disabled={state.scenario >= 3.0}
+                >
+                  <span className="text-base">+</span>
+                  <span className="text-xs">0.5%</span>
+                </button>
+              </div>
+
+              {/* Reset to Baseline */}
+              <div className="text-center">
+                <button
+                  onClick={() => handleStateChange({ scenario: 0 })}
+                  className="inline-flex items-center justify-center px-8 py-2 rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100 transition-all duration-200 text-gray-700 text-sm min-w-[120px]"
+                  disabled={state.scenario === 0}
+                >
+                  Reset to Baseline (0%)
+                </button>
+              </div>
+
+              {/* Explanatory Text */}
+              <div className="mt-4 text-xs text-text-tertiary leading-relaxed">
+                <p>Adjust EU growth by ±0.5% increments. Positive values represent accelerated growth through innovation, policy improvements, or favorable conditions. Negative values represent slower growth due to structural challenges.</p>
               </div>
             </div>
           </div>
@@ -381,137 +487,60 @@ export function TrajectoryCompare() {
       {/* Delta Results - Full Width Below Chart */}
       {deltaData && (
         <div className="bg-gradient-to-br from-chart-eu/5 to-chart-eu/10 rounded-xl border border-chart-eu/20 p-6 mb-8">
-          {/* Header - Keep existing */}
-          <div className="text-center mb-6">
-            <h3 className="text-2xl font-bold text-text-primary mb-2 flex items-center justify-center">
-              <div className="w-3 h-3 bg-chart-eu rounded-full mr-3"></div>
-              By {state.horizon} years
-            </h3>
-            <div className="text-xl mb-2">
-              <span className="font-bold text-chart-eu text-2xl">{deltaData.leader}</span>
-              <span className="text-text-secondary mx-2">leads by</span>
-              <span className="font-bold text-text-primary text-2xl">
-                {Math.round(deltaData.percentDifference * 10) / 10}%
-              </span>
-            </div>
-            <div className="text-base text-text-tertiary">
-              {deltaData.region1} vs {deltaData.region2}
-              {deltaData.isIndexed ? ' (indexed, start=100)' : ''}
+          {/* Left-aligned Header Question */}
+          <div className="mt-4 mb-8">
+            <div className="text-2xl font-bold text-text-primary text-left">
+              What would it mean if, in {2024 + state.horizon}, {deltaData.leader === 'European Union' ? 'the EU' : 
+                deltaData.leader === 'United States' ? 'the USA' : 
+                deltaData.leader === 'China' ? 'China' : 
+                deltaData.leader === 'BRICS' ? 'BRICS' : deltaData.leader} {deltaData.leader === 'BRICS' ? 'are' : 'is'} ahead of {(deltaData.leader === deltaData.region1 ? deltaData.region2 : deltaData.region1) === 'European Union' ? 'the EU' : 
+                (deltaData.leader === deltaData.region1 ? deltaData.region2 : deltaData.region1) === 'United States' ? 'the USA' : 
+                (deltaData.leader === deltaData.region1 ? deltaData.region2 : deltaData.region1) === 'China' ? 'China' : 
+                (deltaData.leader === deltaData.region1 ? deltaData.region2 : deltaData.region1) === 'BRICS' ? 'BRICS' : (deltaData.leader === deltaData.region1 ? deltaData.region2 : deltaData.region1)} by <span className="bg-purple-500 text-white px-3 py-2 rounded text-2xl font-bold">{Math.round(deltaData.percentDifference * 10) / 10}%</span> in <span className="bg-purple-500 text-white px-3 py-2 rounded text-2xl font-bold">{state.indicator === 'NY.GDP.PCAP.PP.KD' ? 'GDP per capita' : state.indicator === 'GB.XPD.RSDV.GD.ZS' ? 'R&D spending' : state.indicator === 'NY.GDP.MKTP.KD.ZG' ? 'GDP growth' : state.indicator === 'NE.GDI.TOTL.ZS' ? 'investment rates' : 'productivity'}</span>?
             </div>
           </div>
 
-          {/* Real-World Consequences Cards */}
-          <div className="grid md:grid-cols-3 gap-4">
-            {/* Living Standards Card */}
-            <div className="bg-background-primary rounded-lg border border-border-light p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-lg">🏠</span>
-                <h4 className="font-semibold text-text-primary">Living Standards</h4>
-              </div>
-              <div className="text-sm text-text-secondary">
-                {state.indicator === 'NY.GDP.PCAP.PP.KD' ? (
-                  deltaData.percentDifference > 15 ? (
-                    <>
-                      <p className="mb-2">A <strong>{Math.round(deltaData.percentDifference)}%</strong> gap means:</p>
-                      <ul className="space-y-1 text-xs">
-                        <li>• Significant differences in purchasing power</li>
-                        <li>• Different access to healthcare and education</li>
-                        <li>• Varying quality of infrastructure</li>
-                      </ul>
-                    </>
-                  ) : deltaData.percentDifference > 5 ? (
-                    <>
-                      <p className="mb-2">A <strong>{Math.round(deltaData.percentDifference)}%</strong> gap translates to:</p>
-                      <ul className="space-y-1 text-xs">
-                        <li>• Noticeable differences in disposable income</li>
-                        <li>• Varied consumer spending patterns</li>
-                        <li>• Different housing affordability</li>
-                      </ul>
-                    </>
-                  ) : (
-                    <p>Similar living standards with minor differences in purchasing power and lifestyle choices.</p>
-                  )
+          {/* Full-width Analysis Content */}
+          <div className="text-base text-text-secondary leading-relaxed">
+                {isLoadingConsequences ? (
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 border-2 border-chart-eu border-t-transparent rounded-full animate-spin"></div>
+                    <span>Analyzing real-world implications...</span>
+                  </div>
+                ) : consequences?.content ? (
+                  <div className="prose prose-gray max-w-none">
+                    {consequences.content.split('\n').map((line, index) => {
+                      if (line.startsWith('# ')) {
+                        return <h2 key={index} className="text-xl font-bold text-text-primary mt-8 mb-4 first:mt-0">{line.replace('# ', '')}</h2>;
+                      } else if (line.startsWith('## ')) {
+                        return <h3 key={index} className="text-lg font-semibold text-text-primary mt-6 mb-3 first:mt-0">{line.replace('## ', '')}</h3>;
+                      } else if (line.startsWith('### ')) {
+                        return <h4 key={index} className="text-base font-semibold text-text-primary mt-4 mb-2 first:mt-0">{line.replace('### ', '')}</h4>;
+                      } else if (line.startsWith('• ')) {
+                        return (
+                          <div key={index} className="ml-4 mb-2">
+                            <span className="text-purple-500 mr-2">•</span>
+                            <span className="text-text-secondary">{line.replace('• ', '')}</span>
+                          </div>
+                        );
+                      } else if (line.trim() === '') {
+                        return <div key={index} className="h-2"></div>;
+                      } else {
+                        return <p key={index} className="mb-3 text-text-secondary">{line}</p>;
+                      }
+                    })}
+                  </div>
                 ) : (
-                  <p>Economic growth differences gradually compound into varying improvements in quality of life over time.</p>
+                  // Fallback to static content
+                  <p>
+                    Economic differences of this magnitude create meaningful real-world impacts. Over the {state.horizon}-year timeframe, 
+                    this {Math.round(deltaData.percentDifference * 10) / 10}% gap in {state.indicator === 'NY.GDP.PCAP.PP.KD' ? 'GDP per capita' : 
+                    state.indicator === 'GB.XPD.RSDV.GD.ZS' ? 'R&D spending' : 
+                    state.indicator === 'NY.GDP.MKTP.KD.ZG' ? 'GDP growth' : 
+                    state.indicator === 'NE.GDI.TOTL.ZS' ? 'investment rates' : 'productivity'} would compound to affect 
+                    living standards, competitiveness, and long-term economic prospects.
+                  </p>
                 )}
-              </div>
-            </div>
-
-            {/* Public Services Card */}
-            <div className="bg-background-primary rounded-lg border border-border-light p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-lg">🏥</span>
-                <h4 className="font-semibold text-text-primary">Public Services</h4>
-              </div>
-              <div className="text-sm text-text-secondary">
-                {state.indicator === 'NY.GDP.PCAP.PP.KD' ? (
-                  deltaData.percentDifference > 15 ? (
-                    <>
-                      <p className="mb-2">Higher GDP enables:</p>
-                      <ul className="space-y-1 text-xs">
-                        <li>• More funding for healthcare systems</li>
-                        <li>• Better educational resources</li>
-                        <li>• Enhanced social safety nets</li>
-                      </ul>
-                    </>
-                  ) : deltaData.percentDifference > 5 ? (
-                    <>
-                      <p className="mb-2">Moderate differences in:</p>
-                      <ul className="space-y-1 text-xs">
-                        <li>• Public investment capacity</li>
-                        <li>• Infrastructure maintenance</li>
-                        <li>• Social program scope</li>
-                      </ul>
-                    </>
-                  ) : (
-                    <p>Similar capacity for public investment and social programs with minor variations in scope.</p>
-                  )
-                ) : state.indicator === 'GB.XPD.RSDV.GD.ZS' ? (
-                  <p>R&D investment differences affect future innovation capacity and technological leadership in public services.</p>
-                ) : (
-                  <p>Economic growth variations influence government revenue and capacity for public service delivery.</p>
-                )}
-              </div>
-            </div>
-
-            {/* Economic Competitiveness Card */}
-            <div className="bg-background-primary rounded-lg border border-border-light p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-lg">🏭</span>
-                <h4 className="font-semibold text-text-primary">Economic Position</h4>
-              </div>
-              <div className="text-sm text-text-secondary">
-                {state.indicator === 'NY.GDP.PCAP.PP.KD' ? (
-                  deltaData.percentDifference > 15 ? (
-                    <>
-                      <p className="mb-2">Significant impact on:</p>
-                      <ul className="space-y-1 text-xs">
-                        <li>• Global economic influence</li>
-                        <li>• Ability to attract investment</li>
-                        <li>• Trade negotiating power</li>
-                      </ul>
-                    </>
-                  ) : deltaData.percentDifference > 5 ? (
-                    <>
-                      <p className="mb-2">Notable effects on:</p>
-                      <ul className="space-y-1 text-xs">
-                        <li>• International competitiveness</li>
-                        <li>• Business environment attractiveness</li>
-                        <li>• Innovation ecosystem strength</li>
-                      </ul>
-                    </>
-                  ) : (
-                    <p>Relatively similar competitive positions with minor differences in global economic standing.</p>
-                  )
-                ) : state.indicator === 'GB.XPD.RSDV.GD.ZS' ? (
-                  <p>R&D spending gaps create long-term differences in technological capabilities and innovation leadership.</p>
-                ) : state.indicator === 'labor_productivity' ? (
-                  <p>Productivity differences determine competitiveness, wage growth potential, and industrial strength.</p>
-                ) : (
-                  <p>Growth pattern differences influence long-term economic positioning and global competitiveness.</p>
-                )}
-              </div>
-            </div>
           </div>
         </div>
       )}
