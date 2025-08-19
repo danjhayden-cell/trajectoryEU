@@ -131,7 +131,8 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
         const cagr = calculateCAGR(regionId, indicatorId, projectionStartYear, currentYear);
         
         if (cagr) {
-          const adjustedGrowthRate = cagr + (state.scenario / 100);
+          // Only apply scenario adjustment to EU (EUU)
+          const adjustedGrowthRate = regionId === 'EUU' ? cagr + (state.scenario / 100) : cagr;
           const lastHistoricalValue = historicalPoints[historicalPoints.length - 1].y;
 
           // Create projection points starting from last historical point
