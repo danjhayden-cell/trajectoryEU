@@ -201,6 +201,7 @@ export function TrajectoryChart({ state }: TrajectoryChartProps) {
     try {
       const data = generateChartData(state);
       console.log('Generated chart data length:', data.length);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const currentYear = 2024;
 
       if (data.length === 0) {
@@ -236,12 +237,20 @@ export function TrajectoryChart({ state }: TrajectoryChartProps) {
         width: Math.min(800, containerRef.current.clientWidth),
         height: 400,
         marks: [
-          Plot.line(data, {
+          // Historical data (solid lines)
+          Plot.line(data.filter(d => d.type === 'historical'), {
             x: 'year',
             y: 'value',
             stroke: 'region',
-            strokeWidth: d => d.type === 'historical' ? 3 : 2,
-            strokeDasharray: d => d.type === 'projection' ? '8,4' : null
+            strokeWidth: 3
+          }),
+          // Projection data (dashed lines)
+          Plot.line(data.filter(d => d.type === 'projection'), {
+            x: 'year',
+            y: 'value',
+            stroke: 'region',
+            strokeWidth: 2,
+            strokeDasharray: '8,4'
           })
         ]
       });
@@ -252,10 +261,12 @@ export function TrajectoryChart({ state }: TrajectoryChartProps) {
       setIsLoading(false);
     } catch (error) {
       console.error('Error creating chart:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack
-      });
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack
+        });
+      }
       setIsLoading(false);
     }
     }, 100); // 100ms delay

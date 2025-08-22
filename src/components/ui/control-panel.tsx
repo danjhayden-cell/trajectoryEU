@@ -2,6 +2,7 @@
 
 import { ChevronDown } from 'lucide-react';
 import type { ComparisonState } from '../trajectory-compare';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { indicators, regions } from '../../../lib/sample-data';
 
 interface ControlPanelProps {

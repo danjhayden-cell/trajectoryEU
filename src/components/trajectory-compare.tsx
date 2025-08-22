@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Settings, Zap, ChevronDown } from 'lucide-react';
 import { ChartJSTrajectory } from './charts/chartjs-trajectory';
 import { ControlPanel } from './ui/control-panel';
 import { NarrativePanel } from './ui/narrative-panel';
-import { regions, getDataForIndicatorAndRegions, calculateCAGR } from '../../lib/sample-data';
+import { regions, getDataForIndicatorAndRegions, calculateCAGR } from '../../lib/data-source-client';
 
 // Convert indicator IDs to match our sample data
 const getIndicatorId = (stateIndicator: string): string => {
@@ -44,11 +44,20 @@ export function TrajectoryCompare() {
   const [showNarrative, setShowNarrative] = useState(false);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const [customScenario] = useState(0);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isCustomScenario, setIsCustomScenario] = useState(false);
   const [consequences, setConsequences] = useState<{
     content: string;
   } | null>(null);
   const [isLoadingConsequences, setIsLoadingConsequences] = useState(false);
+  const [deltaData, setDeltaData] = useState<{
+    region1: string;
+    region2: string;
+    delta: number;
+    percentDifference: number;
+    leader: string;
+    isIndexed: boolean;
+  } | null>(null);
   
   // Animated header words
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
@@ -161,68 +170,96 @@ export function TrajectoryCompare() {
     setState(presetConfig);
   };
 
-  // Calculate delta values for callout (memoized to prevent hydration mismatches)
-  const deltaData = useMemo(() => {
-    if (state.regions.length < 2) return null;
-    
-    const currentYear = 2024;
-    const scenario = isCustomScenario ? customScenario : state.scenario;
-    
-    // Get sample data for calculation
-    const indicatorId = getIndicatorId(state.indicator);
-    const data = getDataForIndicatorAndRegions(indicatorId, state.regions);
-    
-    const projections = state.regions.map(regionId => {
-      const regionData = data.filter(d => d.region === regionId && d.year >= state.startYear && d.year <= currentYear);
-      if (regionData.length === 0) return null;
-      
-      const cagr = calculateCAGR(regionId, indicatorId, Math.max(state.startYear, currentYear - 10), currentYear);
-      if (!cagr) return null;
-      
-      // Only apply scenario adjustment to EU (EUU)
-      const adjustedGrowthRate = regionId === 'EUU' ? cagr + (scenario / 100) : cagr;
-      const latestValue = regionData[regionData.length - 1].value;
-      
-      let startValue = latestValue;
-      let endValue = latestValue;
-      
-      if (state.indexNormalized) {
-        const baseData = regionData.find(d => d.year === state.startYear);
-        if (baseData) {
-          startValue = (latestValue / baseData.value) * 100;
-          endValue = startValue * Math.pow(1 + adjustedGrowthRate, state.horizon);
-        }
-      } else {
-        endValue = latestValue * Math.pow(1 + adjustedGrowthRate, state.horizon);
+  // Calculate delta values asynchronously
+  useEffect(() => {
+    const calculateDeltaData = async () => {
+      if (state.regions.length < 2) {
+        setDeltaData(null);
+        return;
       }
       
-      return {
-        regionId,
-        regionName: regions.find(r => r.id === regionId)?.name || regionId,
-        endValue,
-        change: ((endValue - startValue) / startValue) * 100
-      };
-    }).filter(Boolean);
-    
-    if (projections.length < 2) return null;
-    
-    // Compare first two regions
-    const region1 = projections[0];
-    const region2 = projections[1];
-    
-    if (!region1 || !region2) return null;
-    
-    const delta = region2.endValue - region1.endValue;
-    const percentDifference = ((region2.endValue - region1.endValue) / region1.endValue) * 100;
-    
-    return {
-      region1: region1.regionName,
-      region2: region2.regionName,
-      delta: Math.abs(delta),
-      percentDifference: Math.abs(percentDifference),
-      leader: delta > 0 ? region2.regionName : region1.regionName,
-      isIndexed: state.indexNormalized
+      try {
+        const currentYear = 2024;
+        const scenario = isCustomScenario ? customScenario : state.scenario;
+        
+        // Get data for calculation (might be sync or async)
+        const indicatorId = getIndicatorId(state.indicator);
+        const dataResult = getDataForIndicatorAndRegions(indicatorId, state.regions);
+        const data = dataResult instanceof Promise ? await dataResult : dataResult;
+        
+        if (!Array.isArray(data)) {
+          setDeltaData(null);
+          return;
+        }
+        
+        const projections = await Promise.all(state.regions.map(async regionId => {
+          const regionData = data.filter(d => d.region === regionId && d.year >= state.startYear && d.year <= currentYear);
+          if (regionData.length === 0) return null;
+          
+          const cagrResult = calculateCAGR(regionId, indicatorId, Math.max(state.startYear, currentYear - 10), currentYear);
+          const cagr = cagrResult instanceof Promise ? await cagrResult : cagrResult;
+          if (!cagr) return null;
+          
+          // Only apply scenario adjustment to EU (EUU)
+          const adjustedGrowthRate = regionId === 'EUU' ? cagr + (scenario / 100) : cagr;
+          const latestValue = regionData[regionData.length - 1].value;
+          
+          let startValue = latestValue;
+          let endValue = latestValue;
+          
+          if (state.indexNormalized) {
+            const baseData = regionData.find(d => d.year === state.startYear);
+            if (baseData) {
+              startValue = (latestValue / baseData.value) * 100;
+              endValue = startValue * Math.pow(1 + adjustedGrowthRate, state.horizon);
+            }
+          } else {
+            endValue = latestValue * Math.pow(1 + adjustedGrowthRate, state.horizon);
+          }
+          
+          return {
+            regionId,
+            regionName: regions.find(r => r.id === regionId)?.name || regionId,
+            endValue,
+            change: ((endValue - startValue) / startValue) * 100
+          };
+        }));
+        
+        const validProjections = projections.filter(Boolean);
+        
+        if (validProjections.length < 2) {
+          setDeltaData(null);
+          return;
+        }
+        
+        // Compare first two regions
+        const region1 = validProjections[0];
+        const region2 = validProjections[1];
+        
+        if (!region1 || !region2) {
+          setDeltaData(null);
+          return;
+        }
+        
+        const delta = region2.endValue - region1.endValue;
+        const percentDifference = ((region2.endValue - region1.endValue) / region1.endValue) * 100;
+        
+        setDeltaData({
+          region1: region1.regionName,
+          region2: region2.regionName,
+          delta: Math.abs(delta),
+          percentDifference: Math.abs(percentDifference),
+          leader: delta > 0 ? region2.regionName : region1.regionName,
+          isIndexed: state.indexNormalized
+        });
+        
+      } catch (error) {
+        console.error('Error calculating delta data:', error);
+        setDeltaData(null);
+      }
     };
+
+    calculateDeltaData();
   }, [state.regions, state.horizon, state.scenario, state.indicator, state.startYear, state.indexNormalized, isCustomScenario, customScenario]);
 
   // Fetch consequences when delta data changes

@@ -6,7 +6,13 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:init": "node scripts/init-database.js",
+    "db:reset": "rm -f data/trajectory.db && npm run db:init",
+    "db:test": "node -r esbuild-register scripts/test-database.js",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug"
   },
   "dependencies": {
     "@observablehq/plot": "^0.6.17",
@@ -16,16 +22,22 @@
     "date-fns": "^4.1.0",
     "lucide-react": "^0.540.0",
     "next": "15.4.6",
+    "node-fetch": "^2.7.0",
     "react": "19.1.0",
     "react-chartjs-2": "^5.3.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/node-fetch": "^2.6.13",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild-register": "^3.6.0",
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
     "tailwindcss": "^4",

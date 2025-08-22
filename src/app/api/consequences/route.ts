@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
       region2, 
       percentageDifference, 
       timeHorizon, 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       scenario,
       leader 
     } = await request.json();
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Simple indicator name mapping
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const indicatorNames: Record<string, string> = {
       'NY.GDP.PCAP.PP.KD': 'GDP per Capita',
       'NY.GDP.MKTP.KD.ZG': 'GDP Growth',
