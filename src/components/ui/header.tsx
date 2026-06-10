@@ -1,8 +1,141 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { TrendingUp, Info, Menu, X } from 'lucide-react';
+import { Info, Menu, X } from 'lucide-react';
+
+// Custom animated arrow component
+function AnimatedArrow() {
+  const [animationKey, setAnimationKey] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAnimationKey(prev => prev + 1);
+    }, 3000); // Animate every 3 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="relative w-6 h-6">
+      <svg
+        key={animationKey}
+        className="w-6 h-6 text-purple-500"
+        fill="currentColor"
+        viewBox="0 0 24 24"
+      >
+        {/* Arrow pointing diagonally up-right */}
+        <g transform="rotate(-45 12 12)">
+          {/* Segment 1 - Base */}
+          <rect 
+            x="3" 
+            y="11" 
+            width="3" 
+            height="2" 
+            rx="1"
+            className="animate-pulse"
+            style={{
+              animationDelay: '0ms',
+              animationDuration: '2500ms'
+            }}
+          >
+            <animate
+              attributeName="fill"
+              values="currentColor;white;currentColor"
+              dur="2.5s"
+              begin="0s"
+              repeatCount="1"
+            />
+          </rect>
+          
+          {/* Segment 2 */}
+          <rect 
+            x="6" 
+            y="11" 
+            width="3" 
+            height="2" 
+            rx="1"
+            className="animate-pulse"
+            style={{
+              animationDelay: '400ms',
+              animationDuration: '2500ms'
+            }}
+          >
+            <animate
+              attributeName="fill"
+              values="currentColor;white;currentColor"
+              dur="2.5s"
+              begin="0.4s"
+              repeatCount="1"
+            />
+          </rect>
+          
+          {/* Segment 3 */}
+          <rect 
+            x="9" 
+            y="11" 
+            width="3" 
+            height="2" 
+            rx="1"
+            className="animate-pulse"
+            style={{
+              animationDelay: '800ms',
+              animationDuration: '2500ms'
+            }}
+          >
+            <animate
+              attributeName="fill"
+              values="currentColor;white;currentColor"
+              dur="2.5s"
+              begin="0.8s"
+              repeatCount="1"
+            />
+          </rect>
+          
+          {/* Segment 4 */}
+          <rect 
+            x="12" 
+            y="11" 
+            width="3" 
+            height="2" 
+            rx="1"
+            className="animate-pulse"
+            style={{
+              animationDelay: '1200ms',
+              animationDuration: '2500ms'
+            }}
+          >
+            <animate
+              attributeName="fill"
+              values="currentColor;white;currentColor"
+              dur="2.5s"
+              begin="1.2s"
+              repeatCount="1"
+            />
+          </rect>
+          
+          {/* Arrow head */}
+          <polygon 
+            points="15,8 15,10 18,10 21,12 18,14 15,14 15,16"
+            className="animate-pulse"
+            style={{
+              animationDelay: '1600ms',
+              animationDuration: '2500ms'
+            }}
+          >
+            <animate
+              attributeName="fill"
+              values="currentColor;white;currentColor"
+              dur="2.5s"
+              begin="1.6s"
+              repeatCount="1"
+            />
+          </polygon>
+        </g>
+      </svg>
+    </div>
+  );
+}
 
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -17,12 +150,12 @@ export function Header() {
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity group"
             onClick={() => setIsMobileMenuOpen(false)}
           >
-            <div className="p-2 bg-chart-eu/10 rounded-lg group-hover:bg-chart-eu/20 transition-colors">
-              <TrendingUp className="h-6 w-6 text-chart-eu" />
+            <div className="p-2 bg-purple-500/10 rounded-lg group-hover:bg-purple-500/20 transition-colors">
+              <AnimatedArrow />
             </div>
             <div className="hidden sm:block">
               <h1 className="text-xl font-bold text-text-primary">Trajectory EU</h1>
-              <p className="text-xs text-text-tertiary -mt-0.5">Economic Growth Projections</p>
+              <p className="text-xs text-text-tertiary -mt-0.5">Aiming for the future we want</p>
             </div>
             <div className="sm:hidden">
               <h1 className="text-lg font-bold text-text-primary">Trajectory EU</h1>
