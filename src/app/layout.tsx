@@ -4,7 +4,7 @@ import { Header } from "@/components/ui/header";
 
 export const metadata: Metadata = {
   title: "Trajectory EU - See How Small Differences Become Big Futures",
-  description: "Compare historical trends and project economic trajectories for Europe vs global peers. Understand how small differences in growth compound into big outcomes.",
+  description: "Compare historical trends and project economic trajectories for Europe vs global peers. Understand how small differences in growth compound to different outcomes.",
   keywords: ["EU economics", "economic projections", "growth trajectories", "policy analysis"],
   authors: [{ name: "Trajectory EU" }],
   openGraph: {
