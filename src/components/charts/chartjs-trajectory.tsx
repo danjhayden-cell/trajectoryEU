@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -15,7 +15,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import type { ComparisonState } from '../trajectory-compare';
-import { getDataForIndicatorAndRegions, regions, calculateCAGR, indicators } from '../../../lib/data-source-client';
+import { getDataForIndicatorAndRegions, regions, calculateCAGR, indicators } from '../../../lib/sample-data';
 
 // Register Chart.js components
 ChartJS.register(
@@ -51,64 +51,10 @@ const getIndicatorId = (stateIndicator: string): string => {
   return mapping[stateIndicator] || 'gdp_per_capita';
 };
 
-// Helper function to generate appropriate Y-axis titles
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getYAxisTitle = (indicatorInfo: any) => {
-  if (!indicatorInfo) return 'Value';
-  
-  switch (indicatorInfo.id) {
-    case 'gdp_per_capita':
-      return 'GDP per Capita (PPP, USD)';
-    case 'labor_productivity':
-      return 'Labor Productivity (USD per employed person)';
-    case 'real_gdp_growth':
-      return 'Real GDP Growth Rate (%)';
-    case 'rd_expenditure':
-      return 'R&D Expenditure (% of GDP)';
-    case 'capital_formation':
-      return 'Gross Capital Formation (% of GDP)';
-    default:
-      return `${indicatorInfo.name} (${indicatorInfo.unit})`;
-  }
-};
-
-// Helper function to determine if Y-axis should begin at zero
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getBeginAtZero = (indicatorInfo: any) => {
-  if (!indicatorInfo) return false;
-  
-  switch (indicatorInfo.id) {
-    case 'real_gdp_growth':
-      // GDP growth can be negative, so don't force zero
-      return false;
-    case 'rd_expenditure':
-    case 'capital_formation':
-      // Percentages should start at zero for context
-      return true;
-    case 'gdp_per_capita':
-    case 'labor_productivity':
-      // Currency values don't need to start at zero (better scale)
-      return false;
-    default:
-      return indicatorInfo?.unit === '%';
-  }
-};
-
 export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [chartData, setChartData] = useState<any>({ datasets: [] });
-
-  useEffect(() => {
-    const loadChartData = async () => {
-      try {
-        const indicatorId = getIndicatorId(state.indicator);
-        const dataResult = getDataForIndicatorAndRegions(indicatorId, state.regions);
-        const historicalData = dataResult instanceof Promise ? await dataResult : dataResult;
-
-        if (!Array.isArray(historicalData)) {
-          setChartData({ datasets: [] });
-          return;
-        }
+  const chartData = useMemo(() => {
+    const indicatorId = getIndicatorId(state.indicator);
+    const historicalData = getDataForIndicatorAndRegions(indicatorId, state.regions);
     
     const currentYear = 2024;
     const endYear = currentYear + state.horizon;
@@ -119,8 +65,7 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
     );
     
     if (filteredHistorical.length === 0) {
-      setChartData({ datasets: [] });
-      return;
+      return { datasets: [] };
     }
 
     // Region color mapping
@@ -145,23 +90,11 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
     }
 
     // Create separate datasets for historical and projection data
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const datasets: any[] = [];
 
-    const regionDataSets = await Promise.all(state.regions.map(async regionId => {
+    state.regions.forEach(regionId => {
       const region = regions.find(r => r.id === regionId);
       if (!region) return;
-
-      // Use shorter names for chart labels
-      const getShortRegionName = (regionId: string) => {
-        const shortNames: Record<string, string> = {
-          'EUU': 'EU',
-          'USA': 'USA', 
-          'CHN': 'China',
-          'BRC': 'BRICS'
-        };
-        return shortNames[regionId] || region.name;
-      };
 
       const regionColor = regionColors[regionId] || '#6B7280';
 
@@ -177,11 +110,10 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
         })
         .sort((a, b) => a.x - b.x);
 
-      // Create historical dataset
-      let historicalDataSet = null;
+      // Add historical dataset
       if (historicalPoints.length > 0) {
-        historicalDataSet = {
-          label: getShortRegionName(regionId),
+        datasets.push({
+          label: region.name,
           data: historicalPoints,
           borderColor: regionColor,
           backgroundColor: `${regionColor}20`,
@@ -192,16 +124,11 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
           pointBorderWidth: 2,
           tension: 0.1,
           fill: false,
-        };
-      }
-      
-      // Create projection dataset
-      let projectionDataSet = null;
-      if (historicalPoints.length > 0) {
+        });
+
         // Generate projections
         const projectionStartYear = Math.max(state.startYear, currentYear - 10);
-        const cagrResult = calculateCAGR(regionId, indicatorId, projectionStartYear, currentYear);
-        const cagr = cagrResult instanceof Promise ? await cagrResult : cagrResult;
+        const cagr = calculateCAGR(regionId, indicatorId, projectionStartYear, currentYear);
         
         if (cagr) {
           // Only apply scenario adjustment to EU (EUU)
@@ -219,9 +146,9 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
             projectionPoints.push({ x: year, y: projectedValue });
           }
 
-          // Create projection dataset
-          projectionDataSet = {
-            label: `${getShortRegionName(regionId)} (Projected)`,
+          // Add projection dataset
+          datasets.push({
+            label: `${region.name} (Projected)`,
             data: projectionPoints,
             borderColor: regionColor,
             backgroundColor: `${regionColor}10`,
@@ -231,27 +158,12 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
             pointHoverRadius: 4,
             tension: 0.1,
             fill: false,
-          };
+          });
         }
       }
-
-      return { historical: historicalDataSet, projection: projectionDataSet };
-    }));
-
-    // Flatten the results into datasets array
-    regionDataSets.forEach(regionResult => {
-      if (regionResult?.historical) datasets.push(regionResult.historical);
-      if (regionResult?.projection) datasets.push(regionResult.projection);
     });
 
-    setChartData({ datasets });
-      } catch (error) {
-        console.error('Error loading chart data:', error);
-        setChartData({ datasets: [] });
-      }
-    };
-
-    loadChartData();
+    return { datasets };
   }, [state]);
 
   const options: ChartOptions<'line'> = useMemo(() => {
@@ -284,33 +196,16 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
           callbacks: {
             title: (tooltipItems: TooltipItem<'line'>[]) => {
               const year = tooltipItems[0]?.parsed?.x;
-              return `${year}`; // Bold year formatting, no comma
+              return `Year: ${year}`;
             },
             label: (context: TooltipItem<'line'>) => {
               const point = context.dataset.data[context.dataIndex] as ProcessedDataPoint;
               const value = typeof context.parsed.y === 'number' ? context.parsed.y : 0;
-              
-              let formattedValue: string;
-              if (state.indexNormalized) {
-                formattedValue = `${value.toFixed(1)} (Index)`;
-              } else {
-                // Format based on indicator type
-                switch (indicatorInfo?.id) {
-                  case 'gdp_per_capita':
-                    formattedValue = `$${Math.round(value).toLocaleString()}`;
-                    break;
-                  case 'labor_productivity':
-                    formattedValue = `$${Math.round(value).toLocaleString()}`;
-                    break;
-                  case 'real_gdp_growth':
-                  case 'rd_expenditure':
-                  case 'capital_formation':
-                    formattedValue = `${value.toFixed(1)}%`;
-                    break;
-                  default:
-                    formattedValue = Math.round(value).toLocaleString();
-                }
-              }
+              const formattedValue = indicatorInfo?.unit === '%' 
+                ? `${value.toFixed(1)}%`
+                : state.indexNormalized 
+                  ? `${value.toFixed(1)} (Index)`
+                  : value.toLocaleString();
               
               const type = point?.type === 'projection' ? ' (Projected)' : '';
               return `${context.dataset.label}: ${formattedValue}${type}`;
@@ -345,21 +240,15 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
               family: 'inherit',
               size: 11,
             },
-            callback: function(value) {
-              if (typeof value === 'number') {
-                return Math.round(value).toString(); // Remove commas from years
-              }
-              return value;
-            },
           },
         },
         y: {
-          beginAtZero: getBeginAtZero(indicatorInfo),
+          beginAtZero: indicatorInfo?.unit === '%' ? true : false,
           title: {
             display: true,
             text: state.indexNormalized 
               ? 'Index (Start Year = 100)' 
-              : getYAxisTitle(indicatorInfo),
+              : `${indicatorInfo?.name || 'Value'} (${indicatorInfo?.unit || ''})`,
             font: {
               family: 'inherit',
               size: 12,
@@ -379,19 +268,9 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
             },
             callback: function(value) {
               if (typeof value === 'number') {
-                // Format based on indicator type
-                switch (indicatorInfo?.id) {
-                  case 'gdp_per_capita':
-                    return `$${Math.round(value).toLocaleString()}`;
-                  case 'labor_productivity':
-                    return `$${Math.round(value).toLocaleString()}`;
-                  case 'real_gdp_growth':
-                  case 'rd_expenditure':
-                  case 'capital_formation':
-                    return `${value.toFixed(1)}%`;
-                  default:
-                    return Math.round(value).toLocaleString();
-                }
+                return indicatorInfo?.unit === '%' 
+                  ? `${value.toFixed(1)}%`
+                  : value.toLocaleString();
               }
               return value;
             },
@@ -414,7 +293,6 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
   // Custom plugin for projected area background shade
   const projectedAreaPlugin = {
     id: 'projectedArea',
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     beforeDatasetsDraw(chart: any) {
       const { ctx, chartArea, scales } = chart;
       const currentYear = 2024;
@@ -424,24 +302,13 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
       
       if (projectionStartX < chartArea.right) {
         ctx.save();
-        ctx.fillStyle = 'rgba(59, 130, 246, 0.08)'; // More visible blue shade
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.03)'; // Very subtle blue shade
         ctx.fillRect(
           projectionStartX,
           chartArea.top,
           chartArea.right - projectionStartX,
           chartArea.bottom - chartArea.top
         );
-        
-        // Add a subtle vertical line at the projection boundary
-        ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]); // Dashed line
-        ctx.beginPath();
-        ctx.moveTo(projectionStartX, chartArea.top);
-        ctx.lineTo(projectionStartX, chartArea.bottom);
-        ctx.stroke();
-        ctx.setLineDash([]); // Reset line dash
-        
         ctx.restore();
       }
     }
@@ -450,19 +317,16 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
   // Custom plugin for line-end labels
   const lineEndLabelsPlugin = {
     id: 'lineEndLabels',
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     afterDatasetsDraw(chart: any) {
       const { ctx, chartArea } = chart;
       const labelPositions: Array<{x: number, y: number, label: string, color: string}> = [];
       
       // Collect all projection datasets (these are the rightmost lines)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const projectionDatasets = chart.data.datasets.filter((dataset: any) => 
         dataset.label && dataset.label.includes('Projected')
       );
       
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      projectionDatasets.forEach((dataset: any) => {
+      projectionDatasets.forEach((dataset: any, index: number) => {
         const datasetIndex = chart.data.datasets.indexOf(dataset);
         const points = chart.getDatasetMeta(datasetIndex).data;
         
@@ -540,16 +404,40 @@ export function ChartJSTrajectory({ state }: ChartJSTrajectoryProps) {
       </div>
       
       {/* Chart Info */}
-      <div className="border-t border-border-light pt-6">
-        <div className="flex items-center space-x-8">
-          <div className="flex items-center space-x-3">
-            <div className="h-3 w-6 border-2 border-chart-eu"></div>
-            <span className="text-text-tertiary">Historical</span>
+      <div className="border-t border-border-light pt-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between text-base">
+          <div className="flex items-center space-x-8">
+            <div className="flex items-center space-x-3">
+              <div className="h-3 w-6 border-2 border-chart-eu"></div>
+              <span className="text-text-tertiary">Historical</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="h-px w-6 border-t-2 border-dashed border-chart-eu"></div>
+              <span className="text-text-tertiary">Projection</span>
+            </div>
           </div>
-          <div className="flex items-center space-x-3">
-            <div className="h-px w-6 border-t-2 border-dashed border-chart-eu"></div>
-            <span className="text-text-tertiary">Projection</span>
+          <div className="text-text-tertiary">
+            Scenario: {state.scenario === 0 ? 'Baseline growth' : 
+                      state.scenario > 0 ? `+${state.scenario}pp annual growth` : 
+                      `${state.scenario}pp annual growth`}
           </div>
+        </div>
+        
+        {/* Current Regions Legend */}
+        <div className="flex flex-wrap items-center gap-6">
+          <span className="text-base text-text-secondary font-semibold">Regions:</span>
+          {state.regions.map(regionId => {
+            const region = regions.find(r => r.id === regionId);
+            return region ? (
+              <div key={regionId} className="flex items-center space-x-2">
+                <div 
+                  className="w-3 h-3 rounded-full" 
+                  style={{ backgroundColor: region.color }}
+                ></div>
+                <span className="text-base text-text-secondary">{region.name}</span>
+              </div>
+            ) : null;
+          })}
         </div>
       </div>
     </div>
